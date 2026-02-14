@@ -1,26 +1,22 @@
 <!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8">
-  <title>Тони3 – Статистика перелётов</title>
-  <link rel="stylesheet" href="style.css">
+<meta charset="utf-8">
+<title>Тони3 – Статистика перелётов</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="wrap">
-    <h1>✈ Тони3 – Статистика перелётов</h1>
 
-    <div class="card">
-      <textarea id="data" rows="8"
-        placeholder="Вставь список перелётов: дата, откуда, куда, км"></textarea>
+<div class="wrap">
+<h1>✈ Тони3 – Статистика перелётов</h1>
 
-      <button onclick="calc()">Посчитать</button>
+<input type="file" id="file">
 
-      <pre id="result"></pre>
-    </div>
+<button onclick="load()">Загрузить CSV</button>
 
-    <footer>Anton Zarochintsev – STB</footer>
-  </div>
+<pre id="out"></pre>
+</div>
 
-  <script src="app.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
