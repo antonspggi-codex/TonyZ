@@ -1,22 +1,121 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8">
-<title>Тони3 – Статистика перелётов</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Тони3 — как App in the Air</title>
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Leaflet (карта) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
+  <div class="wrap">
+    <header class="top">
+      <h1>✈ Тони3</h1>
+      <div class="actions">
+        <input type="file" id="file" accept=".csv,text/csv" />
+        <button id="btnLoad">Загрузить CSV</button>
+        <button class="ghost" id="btnClear" title="Удалить сохранённые данные">Очистить</button>
+      </div>
+    </header>
 
-<div class="wrap">
-<h1>✈ Тони3 – Статистика перелётов</h1>
+    <nav class="tabs">
+      <button class="tab active" data-tab="dash">Dashboard</button>
+      <button class="tab" data-tab="flights">Flights</button>
+      <button class="tab" data-tab="map">Map</button>
+    </nav>
 
-<input type="file" id="file">
+    <!-- DASHBOARD -->
+    <section id="tab-dash" class="panel active">
+      <div class="grid">
+        <div class="card kpi">
+          <div class="kpi-title">Рейсов</div>
+          <div class="kpi-value" id="kpiFlights">—</div>
+        </div>
+        <div class="card kpi">
+          <div class="kpi-title">Налёт (время)</div>
+          <div class="kpi-value" id="kpiTime">—</div>
+        </div>
+        <div class="card kpi">
+          <div class="kpi-title">Налёт (км)</div>
+          <div class="kpi-value" id="kpiKm">—</div>
+        </div>
+        <div class="card kpi">
+          <div class="kpi-title">Мирный / Усть-Кут / Владивосток</div>
+          <div class="kpi-value small" id="kpiCities">—</div>
+        </div>
+      </div>
 
-<button onclick="load()">Загрузить CSV</button>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-title">Налёт по годам (км)</div>
+          <canvas id="chartYears" height="160"></canvas>
+          <div class="hint">Если в CSV нет расстояний — считаем по координатам аэропортов (IATA).</div>
+        </div>
 
-<pre id="out"></pre>
-</div>
+        <div class="card">
+          <div class="card-title">Топ маршрутов</div>
+          <ol id="topRoutes" class="list"></ol>
+        </div>
 
-<script src="app.js"></script>
+        <div class="card">
+          <div class="card-title">Топ аэропортов</div>
+          <ol id="topAirports" class="list"></ol>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Топ авиакомпаний</div>
+          <ol id="topAirlines" class="list"></ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- FLIGHTS -->
+    <section id="tab-flights" class="panel">
+      <div class="card">
+        <div class="filters">
+          <input id="q" placeholder="Поиск: SVO, MJZ, Mirny, Yakutia..." />
+          <select id="year"></select>
+          <select id="airline"></select>
+          <select id="airport"></select>
+        </div>
+
+        <div class="tableWrap">
+          <table class="tbl" id="tbl">
+            <thead>
+              <tr>
+                <th>Дата</th>
+                <th>From</th>
+                <th>To</th>
+                <th>Airline</th>
+                <th>Duration</th>
+                <th>km</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- MAP -->
+    <section id="tab-map" class="panel">
+      <div class="card">
+        <div class="card-title">Карта перелётов</div>
+        <div id="map" class="map"></div>
+        <div class="hint">
+          Если какого-то аэропорта нет в базе координат — маршрут будет пропущен на карте и в километрах.
+          Мы можем расширять базу автоматически (следующим шагом).
+        </div>
+      </div>
+    </section>
+
+    <footer class="foot">Данные хранятся локально в браузере (localStorage). Серверов нет.</footer>
+  </div>
+
+  <script src="airports.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
