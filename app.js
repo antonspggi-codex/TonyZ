@@ -1,9 +1,18 @@
-const LS_KEY = "tony3_flights_v1";
+// app.js — Тони3 (как App in the Air) для GitHub Pages
+// Требует: airports.js (window.AIRPORTS + window.ensureAirports), Leaflet (L)
+
+const LS_KEY = "tony3_flights_v2";
+
 let flights = [];
 let map, layerRoutes, layerAirports;
 
-document.getElementById("btnLoad").addEventListener("click", load);
-document.getElementById("btnClear").addEventListener("click", clearAll);
+// --- bind UI ---
+const btnLoad = document.getElementById("btnLoad");
+const btnClear = document.getElementById("btnClear");
+const fileEl = document.getElementById("file");
+
+btnLoad?.addEventListener("click", load);
+btnClear?.addEventListener("click", clearAll);
 
 // Tabs
 document.querySelectorAll(".tab").forEach(btn => {
@@ -11,7 +20,7 @@ document.querySelectorAll(".tab").forEach(btn => {
     document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
     document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
     btn.classList.add("active");
-    document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
+    document.getElementById(`tab-${btn.dataset.tab}`)?.classList.add("active");
     if (btn.dataset.tab === "map") setTimeout(() => map && map.invalidateSize(), 150);
   });
 });
@@ -25,15 +34,54 @@ document.querySelectorAll(".tab").forEach(btn => {
 
 boot();
 
+// --- boot ---
 function boot(){
+  initMap();
+
   const saved = localStorage.getItem(LS_KEY);
   if (saved){
     try{
-      flights = JSON.parse(saved);
+      flights = JSON.parse(saved) || [];
       renderAll();
-    }catch{}
+    } catch {
+      flights = [];
+      renderAll();
+    }
+  } else {
+    renderAll();
   }
-  initMap();
+}
+
+// --- actions ---
+async function load() {
+  const file = fileEl?.files?.[0];
+  if (!file) return alert("Выбери CSV файл");
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const parsed = parseCSV(e.target.result);
+    if (!parsed.length) return alert("Не удалось распарсить CSV. Проверь файл.");
+
+    // enrich basic
+    flights = parsed.map(enrichFlight);
+
+    // collect IATA codes
+    const codes = [];
+    flights.forEach(f => { if (f.fromCode) codes.push(f.fromCode); if (f.toCode) codes.push(f.toCode); });
+
+    // ensure airports coords (downloads big DB once, caches needed)
+    if (window.ensureAirports) {
+      const r = await window.ensureAirports(codes);
+      console.log("ensureAirports:", r);
+    }
+
+    // re-enrich to recalc km after coords appeared
+    flights = flights.map(enrichFlight);
+
+    localStorage.setItem(LS_KEY, JSON.stringify(flights));
+    renderAll();
+  };
+  reader.readAsText(file);
 }
 
 function clearAll(){
@@ -43,25 +91,9 @@ function clearAll(){
   renderAll();
 }
 
-function load() {
-  const file = document.getElementById("file").files[0];
-  if (!file) return alert("Выбери CSV файл");
-
-  const reader = new FileReader();
-  reader.onload = e => {
-    const parsed = parseCSV(e.target.result);
-    if (!parsed.length) return alert("Не удалось распарсить CSV. Проверь файл.");
-
-    flights = parsed.map(enrichFlight);
-    localStorage.setItem(LS_KEY, JSON.stringify(flights));
-    renderAll();
-  };
-  reader.readAsText(file);
-}
-
-/** ===== CSV parser (quotes + commas inside quotes) ===== */
+// --- CSV parsing (quotes + commas in quotes) ---
 function parseCSV(text) {
-  const lines = text.replace(/\r/g, "").split("\n").filter(Boolean);
+  const lines = String(text || "").replace(/\r/g, "").split("\n").filter(Boolean);
   if (lines.length < 2) return [];
 
   const header = parseCSVLine(lines[0]).map(h => h.trim());
@@ -112,7 +144,7 @@ function parseCSVLine(line) {
   return out;
 }
 
-/** ===== Enrich (extract IATA + time + km) ===== */
+// --- enrich flight ---
 function enrichFlight(f){
   const fromCode = extractIATA(f.from);
   const toCode = extractIATA(f.to);
@@ -126,7 +158,6 @@ function enrichFlight(f){
 }
 
 function extractIATA(place){
-  // "... (MJZ/UERR)" -> MJZ
   const m = (place || "").match(/\(([A-Z0-9]{3})\//i);
   return m && m[1] ? m[1].toUpperCase() : "";
 }
@@ -148,7 +179,9 @@ function calcKm(a, b){
   const A = (window.AIRPORTS || {})[a];
   const B = (window.AIRPORTS || {})[b];
   if (!A || !B) return 0;
-  return Math.round(haversine(A.lat, A.lon, B.lat, B.lon));
+  const lat1 = Number(A.lat), lon1 = Number(A.lon), lat2 = Number(B.lat), lon2 = Number(B.lon);
+  if (![lat1,lon1,lat2,lon2].every(isFinite)) return 0;
+  return Math.round(haversine(lat1, lon1, lat2, lon2));
 }
 
 function haversine(lat1, lon1, lat2, lon2){
@@ -161,7 +194,7 @@ function haversine(lat1, lon1, lat2, lon2){
   return 2*R*Math.asin(Math.sqrt(a));
 }
 
-/** ===== Render all ===== */
+// --- render all ---
 function renderAll(){
   renderDashboard();
   buildFilters();
@@ -169,21 +202,22 @@ function renderAll(){
   renderMap();
 }
 
+// --- dashboard ---
 function renderDashboard(){
   const n = flights.length;
   const totalMin = sum(flights, x => x.durMin || 0);
   const totalKm = sum(flights, x => x.km || 0);
 
-  document.getElementById("kpiFlights").textContent = n ? String(n) : "—";
-  document.getElementById("kpiTime").textContent = n ? minutesToHM(totalMin) : "—";
-  document.getElementById("kpiKm").textContent = n ? `${formatInt(totalKm)} км` : "—";
+  setText("kpiFlights", n ? String(n) : "—");
+  setText("kpiTime", n ? minutesToHM(totalMin) : "—");
+  setText("kpiKm", n ? `${formatInt(totalKm)} км` : "—");
 
   const mirny = countCity("MJZ");
   const ustkut = countCity("UKX");
   const vlad = countCity("VVO");
-  document.getElementById("kpiCities").textContent = n ? `MJZ: ${mirny} • UKX: ${ustkut} • VVO: ${vlad}` : "—";
+  setText("kpiCities", n ? `MJZ: ${mirny} • UKX: ${ustkut} • VVO: ${vlad}` : "—");
 
-  // Top lists
+  // top lists
   const topRoutes = topN(groupCount(flights, f => `${f.fromCode || shortName(f.from)} → ${f.toCode || shortName(f.to)}`), 10);
   const topAirports = topN(groupCount(flatAirports(flights), x => x), 10);
   const topAirlines = topN(groupCount(flights, f => f.airline || "—"), 10);
@@ -192,13 +226,13 @@ function renderDashboard(){
   renderOl("topAirports", topAirports);
   renderOl("topAirlines", topAirlines);
 
-  // Chart years by KM (fallback to minutes if km=0)
+  // chart by years: km if any, else minutes
   const byYearKm = groupSum(flights, f => f.year, f => f.km || 0);
   const kmSum = Object.values(byYearKm).reduce((a,b)=>a+b,0);
 
   const byYear = kmSum > 0
     ? byYearKm
-    : groupSum(flights, f => f.year, f => f.durMin || 0); // minutes if no km
+    : groupSum(flights, f => f.year, f => f.durMin || 0);
 
   drawBarChart("chartYears", byYear, kmSum > 0 ? "км" : "мин");
 }
@@ -213,18 +247,11 @@ function flatAirports(fs){
   return arr;
 }
 
+// --- filters ---
 function buildFilters(){
-  // Year
-  const years = uniq(flights.map(f => f.year).filter(Boolean)).sort();
-  fillSelect("year", ["Все годы", ...years]);
-
-  // Airline
-  const airlines = uniq(flights.map(f => f.airline || "—")).sort();
-  fillSelect("airline", ["Все авиакомпании", ...airlines]);
-
-  // Airport
-  const airports = uniq(flatAirports(flights)).sort();
-  fillSelect("airport", ["Все аэропорты", ...airports]);
+  fillSelect("year", ["Все годы", ...uniq(flights.map(f => f.year).filter(Boolean)).sort()]);
+  fillSelect("airline", ["Все авиакомпании", ...uniq(flights.map(f => f.airline || "—")).sort()]);
+  fillSelect("airport", ["Все аэропорты", ...uniq(flatAirports(flights)).sort()]);
 }
 
 function fillSelect(id, items){
@@ -238,15 +265,15 @@ function fillSelect(id, items){
     opt.textContent = t;
     el.appendChild(opt);
   });
-  // try restore if still exists
-  [...el.options].some(o => o.value === cur) && (el.value = cur);
+  if ([...el.options].some(o => o.value === cur)) el.value = cur;
 }
 
+// --- flights table ---
 function renderFlights(){
-  const q = (document.getElementById("q").value || "").trim().toLowerCase();
-  const year = document.getElementById("year").value;
-  const airline = document.getElementById("airline").value;
-  const airport = document.getElementById("airport").value;
+  const q = (document.getElementById("q")?.value || "").trim().toLowerCase();
+  const year = document.getElementById("year")?.value || "";
+  const airline = document.getElementById("airline")?.value || "";
+  const airport = document.getElementById("airport")?.value || "";
 
   let list = flights.slice();
 
@@ -261,10 +288,10 @@ function renderFlights(){
     });
   }
 
-  // sort desc by date
   list.sort((a,b) => (b.date || "").localeCompare(a.date || ""));
 
   const tbody = document.getElementById("rows");
+  if (!tbody) return;
   tbody.innerHTML = "";
 
   list.forEach(f => {
@@ -294,8 +321,11 @@ function escapeHtml(s){
     .replaceAll("'","&#039;");
 }
 
-/** ===== Map ===== */
+// --- map ---
 function initMap(){
+  const mapEl = document.getElementById("map");
+  if (!mapEl || typeof L === "undefined") return;
+
   map = L.map("map", { zoomControl: true }).setView([55.75, 37.62], 4);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 18,
@@ -307,7 +337,8 @@ function initMap(){
 }
 
 function renderMap(){
-  if (!map) return;
+  if (!map || !layerRoutes || !layerAirports) return;
+
   layerRoutes.clearLayers();
   layerAirports.clearLayers();
 
@@ -316,8 +347,8 @@ function renderMap(){
   const airportHits = {};
 
   flights.forEach(f => {
-    const A = AIRPORTS[f.fromCode];
-    const B = AIRPORTS[f.toCode];
+    const A = (window.AIRPORTS || {})[f.fromCode];
+    const B = (window.AIRPORTS || {})[f.toCode];
     if (!A || !B) return;
 
     const line = L.polyline([[A.lat, A.lon],[B.lat, B.lon]], { weight: 2, opacity: 0.35 });
@@ -328,30 +359,33 @@ function renderMap(){
   });
 
   Object.entries(airportHits).forEach(([code, cnt]) => {
-    const A = AIRPORTS[code];
+    const A = (window.AIRPORTS || {})[code];
     if (!A) return;
     const marker = L.circleMarker([A.lat, A.lon], { radius: 6, opacity: 0.9, fillOpacity: 0.6 });
-    marker.bindPopup(`<b>${code}</b><br>${escapeHtml(A.name || "")}<br>Визитов: ${cnt}`);
+    marker.bindPopup(`<b>${escapeHtml(code)}</b><br>${escapeHtml(A.name || "")}<br>Визитов: ${cnt}`);
     marker.addTo(layerAirports);
   });
 
-  // Fit bounds
   const bounds = [];
   Object.keys(airportHits).forEach(code => {
-    const A = AIRPORTS[code];
+    const A = (window.AIRPORTS || {})[code];
     if (A) bounds.push([A.lat, A.lon]);
   });
   if (bounds.length) map.fitBounds(bounds, { padding: [20,20] });
 }
 
-/** ===== Simple chart (canvas) ===== */
+// --- simple bar chart ---
 function drawBarChart(canvasId, obj, unit){
   const c = document.getElementById(canvasId);
+  if (!c) return;
+
   const ctx = c.getContext("2d");
   const entries = Object.entries(obj)
-    .filter(([k,v]) => k && k !== "Date" && /^\d{4}$/.test(k))
+    .filter(([k,v]) => k && /^\d{4}$/.test(k))
     .sort((a,b) => a[0].localeCompare(b[0]));
 
+  // clear
+  ctx.setTransform(1,0,0,1,0,0);
   ctx.clearRect(0,0,c.width,c.height);
 
   if (!entries.length){
@@ -359,19 +393,22 @@ function drawBarChart(canvasId, obj, unit){
     return;
   }
 
-  const W = c.width = c.clientWidth * devicePixelRatio;
-  const H = c.height = c.clientHeight * devicePixelRatio;
-  ctx.scale(devicePixelRatio, devicePixelRatio);
+  // fit to CSS size
+  const dpr = devicePixelRatio || 1;
+  const cssW = c.clientWidth || 600;
+  const cssH = c.clientHeight || 160;
+  c.width = Math.floor(cssW * dpr);
+  c.height = Math.floor(cssH * dpr);
+  ctx.scale(dpr, dpr);
 
-  const w = c.clientWidth;
-  const h = c.clientHeight;
+  const w = cssW, h = cssH;
 
   const max = Math.max(...entries.map(x => x[1])) || 1;
   const pad = 24;
-  const barGap = 6;
-  const barW = Math.max(8, Math.floor((w - pad*2 - barGap*(entries.length-1)) / entries.length));
+  const gap = 6;
+  const barW = Math.max(8, Math.floor((w - pad*2 - gap*(entries.length-1)) / entries.length));
 
-  // axes baseline
+  // axis
   ctx.globalAlpha = 0.3;
   ctx.beginPath();
   ctx.moveTo(pad, h - pad);
@@ -380,8 +417,9 @@ function drawBarChart(canvasId, obj, unit){
   ctx.globalAlpha = 1;
 
   ctx.font = "12px system-ui, Arial";
+
   entries.forEach(([label, val], i) => {
-    const x = pad + i*(barW + barGap);
+    const x = pad + i*(barW + gap);
     const bh = Math.round((h - pad*2) * (val / max));
     const y = (h - pad) - bh;
 
@@ -389,7 +427,6 @@ function drawBarChart(canvasId, obj, unit){
     ctx.fillRect(x, y, barW, bh);
     ctx.globalAlpha = 1;
 
-    // year label
     if (entries.length <= 14 || i % 2 === 0){
       ctx.globalAlpha = 0.75;
       ctx.fillText(label, x, h - 6);
@@ -397,13 +434,17 @@ function drawBarChart(canvasId, obj, unit){
     }
   });
 
-  // max label
   ctx.globalAlpha = 0.7;
   ctx.fillText(`max: ${formatInt(max)} ${unit}`, pad, 14);
   ctx.globalAlpha = 1;
 }
 
-/** ===== Helpers ===== */
+// --- helpers ---
+function setText(id, text){
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
 function sum(arr, fn){ return arr.reduce((a,x)=>a+(fn(x)||0),0); }
 function uniq(arr){ return [...new Set(arr)]; }
 function formatInt(n){ return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " "); }
@@ -432,6 +473,7 @@ function topN(obj, n){
 
 function renderOl(id, items){
   const el = document.getElementById(id);
+  if (!el) return;
   el.innerHTML = "";
   items.forEach(([k,v]) => {
     const li = document.createElement("li");
