@@ -1,0 +1,98 @@
+:root {
+  --bg: #f3f4f6;
+  --card: #ffffff;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --line: #d1d5db;
+  --accent: #1d4ed8;
+  --accent-hover: #1e40af;
+  --warn: #b45309;
+  --ok: #15803d;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}
+.app { max-width: 960px; margin: 0 auto; padding: 20px 16px 40px; }
+h1 { font-size: 22px; margin: 0 0 16px; }
+h2 { font-size: 17px; margin: 0 0 12px; }
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+label { display: block; margin-bottom: 12px; font-weight: 600; font-size: 14px; }
+select, input[type=date], input[type=number] {
+  display: block; width: 100%; margin-top: 4px;
+  padding: 9px 10px; font: inherit; font-weight: 400;
+  border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--text);
+}
+button {
+  font: inherit; padding: 9px 16px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--line); background: #fff; color: var(--text);
+}
+button:hover { background: #f9fafb; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button.primary:hover { background: var(--accent-hover); }
+button.ghost { border-color: transparent; }
+button.small { padding: 4px 10px; font-size: 13px; }
+.issue-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 4px; }
+.issue-row .primary { padding: 12px 22px; font-size: 16px; }
+.next { color: var(--muted); }
+.msg { margin: 10px 0 0; min-height: 1.2em; }
+.msg.ok { color: var(--ok); }
+.msg.warn { color: var(--warn); }
+.muted { color: var(--muted); font-size: 13px; }
+.hidden { display: none; }
+
+.toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.toolbar .spacer { flex: 1; }
+.paper { background: #e5e7eb; padding: 12px; border-radius: 6px; overflow-x: auto; }
+#sheet { background: #fff; width: 190mm; margin: 0 auto; padding: 8mm; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+
+.table-wrap { overflow-x: auto; }
+table.journal { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.journal th, table.journal td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.journal th { color: var(--muted); font-weight: 600; }
+table.journal td:last-child { text-align: right; }
+
+.settings { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px; }
+.settings label { margin: 0; flex: 0 1 260px; }
+.file-btn {
+  margin: 0; font-weight: 400; font-size: 15px; padding: 9px 16px; border: 1px solid var(--line);
+  border-radius: 6px; cursor: pointer; background: #fff;
+}
+.file-btn input { display: none; }
+summary { cursor: pointer; font-weight: 600; }
+
+/* ---------- бланк путевого листа ---------- */
+table.form {
+  width: 100%; border-collapse: collapse; table-layout: fixed;
+  font-family: Arial, sans-serif; font-size: 9pt; color: #000;
+}
+table.form td { padding: 1px 3px; vertical-align: middle; overflow-wrap: anywhere; height: 12.5pt; }
+table.form td.line { border-bottom: 1px solid #000; }
+table.form td.box { border: 1px solid #000; }
+table.form td.hdr { background: #eee; }
+table.form td.b { font-weight: bold; }
+table.form td.c { text-align: center; }
+table.form td.r { text-align: right; }
+table.form td.sm { font-size: 8pt; }
+table.form td.title { font-size: 13pt; padding-top: 4px; }
+table.form td.sec { font-size: 10pt; padding-top: 4px; }
+table.form td.cap { font-size: 6pt; vertical-align: top; text-align: center; color: #333; height: 8pt; }
+.form-page + .form-page { margin-top: 10mm; padding-top: 10mm; border-top: 1px dashed #999; }
+
+.print-only { display: none; }
+@media print {
+  @page { size: A4 portrait; margin: 10mm; }
+  body { background: #fff; }
+  .no-print { display: none !important; }
+  .print-only { display: block; }
+  .form-page + .form-page { break-before: page; margin-top: 0; padding-top: 0; border-top: 0; }
+}

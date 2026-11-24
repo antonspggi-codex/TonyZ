@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Выдача путевых листов</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app no-print">
+    <h1>Выдача путевых листов</h1>
+
+    <section class="card">
+      <label>Машина
+        <select id="car"></select>
+      </label>
+      <label>Водитель
+        <select id="driver"></select>
+      </label>
+      <label>Дата
+        <input type="date" id="date" />
+      </label>
+      <div class="issue-row">
+        <button id="issue" class="primary">Выдать путевой лист</button>
+        <span class="next">Будет присвоен № <b id="nextNum"></b></span>
+      </div>
+      <p id="msg" class="msg"></p>
+    </section>
+
+    <section id="preview" class="card hidden">
+      <div class="toolbar">
+        <b id="previewTitle"></b>
+        <span class="spacer"></span>
+        <button id="print" class="primary">🖨 Печать</button>
+        <button id="excel">Скачать Excel</button>
+        <button id="closePreview" class="ghost">Закрыть</button>
+      </div>
+      <div class="paper"><div id="sheet"></div></div>
+    </section>
+
+    <section class="card">
+      <h2>Журнал выданных путевых листов</h2>
+      <div class="table-wrap">
+        <table class="journal">
+          <thead><tr><th>№</th><th>Дата</th><th>Машина</th><th>Водитель</th><th>Выдан</th><th></th></tr></thead>
+          <tbody id="journal"></tbody>
+        </table>
+      </div>
+      <p id="journalEmpty" class="muted">Пока ничего не выдано.</p>
+    </section>
+
+    <details class="card">
+      <summary>Настройки нумерации и резервная копия</summary>
+      <div class="settings">
+        <label>Следующий номер путевого листа
+          <input type="number" id="nextInput" min="1" step="1" />
+        </label>
+        <button id="saveNext">Сохранить номер</button>
+      </div>
+      <div class="settings">
+        <button id="exportJournal">Журнал в Excel</button>
+        <button id="backup">Скачать резервную копию</button>
+        <label class="file-btn">Восстановить из копии
+          <input type="file" id="restore" accept=".json,application/json" />
+        </label>
+      </div>
+      <p class="muted">Номера и журнал хранятся в этом браузере на этом компьютере.
+        Время от времени скачивайте резервную копию — если браузер очистят, из неё всё восстановится.</p>
+    </details>
+  </div>
+
+  <!-- сюда кладётся бланк для печати -->
+  <div id="printArea" class="print-only"></div>
+
+  <script src="exceljs.min.js"></script>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
