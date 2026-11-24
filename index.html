@@ -4,6 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Тони3 — как App in the Air</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" />
   <link rel="stylesheet" href="style.css" />
 
   <!-- Leaflet (карта) -->
@@ -12,36 +14,48 @@
 <body>
   <div class="wrap">
     <header class="top">
-      <h1>✈ Тони3</h1>
+      <div class="brand">
+        <div class="logo">✈</div>
+        <div>
+          <h1>Тони3</h1>
+          <div class="subtitle">Мои перелёты и статистика</div>
+        </div>
+      </div>
       <div class="actions">
-        <input type="file" id="file" accept=".csv,text/csv" />
-        <button id="btnLoad">Загрузить CSV</button>
+        <label class="fileBtn">📂 <span id="fileName">Выбрать CSV</span>
+          <input type="file" id="file" accept=".csv,text/csv" />
+        </label>
+        <button class="primary" id="btnLoad">Загрузить</button>
         <button class="ghost" id="btnClear" title="Удалить сохранённые данные">Очистить</button>
       </div>
     </header>
 
     <nav class="tabs">
-      <button class="tab active" data-tab="dash">Dashboard</button>
-      <button class="tab" data-tab="flights">Flights</button>
-      <button class="tab" data-tab="map">Map</button>
+      <button class="tab active" data-tab="dash">📊 Обзор</button>
+      <button class="tab" data-tab="flights">🛫 Рейсы</button>
+      <button class="tab" data-tab="map">🗺 Карта</button>
     </nav>
 
     <!-- DASHBOARD -->
     <section id="tab-dash" class="panel active">
       <div class="grid">
-        <div class="card kpi">
+        <div class="card kpi kpi-1">
+          <span class="kpi-icon">🛫</span>
           <div class="kpi-title">Рейсов</div>
           <div class="kpi-value" id="kpiFlights">—</div>
         </div>
-        <div class="card kpi">
+        <div class="card kpi kpi-2">
+          <span class="kpi-icon">⏱</span>
           <div class="kpi-title">Налёт (время)</div>
           <div class="kpi-value" id="kpiTime">—</div>
         </div>
-        <div class="card kpi">
+        <div class="card kpi kpi-3">
+          <span class="kpi-icon">🌍</span>
           <div class="kpi-title">Налёт (км)</div>
           <div class="kpi-value" id="kpiKm">—</div>
         </div>
-        <div class="card kpi">
+        <div class="card kpi kpi-4">
+          <span class="kpi-icon">📍</span>
           <div class="kpi-title">Мирный / Усть-Кут / Владивосток</div>
           <div class="kpi-value small" id="kpiCities">—</div>
         </div>
@@ -49,24 +63,24 @@
 
       <div class="grid2">
         <div class="card">
-          <div class="card-title">Налёт по годам (км)</div>
-          <canvas id="chartYears" height="160"></canvas>
+          <div class="card-title">📈 Налёт по годам</div>
+          <canvas id="chartYears"></canvas>
           <div class="hint">Если в CSV нет расстояний — считаем по координатам аэропортов (IATA).</div>
         </div>
 
         <div class="card">
-          <div class="card-title">Топ маршрутов</div>
-          <ol id="topRoutes" class="list"></ol>
+          <div class="card-title">🔁 Топ маршрутов</div>
+          <ol id="topRoutes" class="list c-routes"></ol>
         </div>
 
         <div class="card">
-          <div class="card-title">Топ аэропортов</div>
-          <ol id="topAirports" class="list"></ol>
+          <div class="card-title">🏢 Топ аэропортов</div>
+          <ol id="topAirports" class="list c-airports"></ol>
         </div>
 
         <div class="card">
-          <div class="card-title">Топ авиакомпаний</div>
-          <ol id="topAirlines" class="list"></ol>
+          <div class="card-title">🛩 Топ авиакомпаний</div>
+          <ol id="topAirlines" class="list c-airlines"></ol>
         </div>
       </div>
     </section>
@@ -86,11 +100,12 @@
             <thead>
               <tr>
                 <th>Дата</th>
-                <th>From</th>
-                <th>To</th>
-                <th>Airline</th>
-                <th>Duration</th>
-                <th>km</th>
+                <th>Откуда</th>
+                <th></th>
+                <th>Куда</th>
+                <th>Авиакомпания</th>
+                <th>Время</th>
+                <th>км</th>
               </tr>
             </thead>
             <tbody id="rows"></tbody>
@@ -102,7 +117,7 @@
     <!-- MAP -->
     <section id="tab-map" class="panel">
       <div class="card">
-        <div class="card-title">Карта перелётов</div>
+        <div class="card-title">🗺 Карта перелётов</div>
         <div id="map" class="map"></div>
         <div class="hint">
           Если какого-то аэропорта нет в базе координат — маршрут будет пропущен на карте и в километрах.
