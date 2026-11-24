@@ -4,7 +4,7 @@
 const LS_KEY = "tony3_flights_v2";
 
 let flights = [];
-let map, layerRoutes, layerAirports;
+let map, layerRoutes, layerAirports, mapBounds = null;
 
 // --- bind UI ---
 const btnLoad = document.getElementById("btnLoad");
@@ -12,6 +12,11 @@ const btnClear = document.getElementById("btnClear");
 const fileEl = document.getElementById("file");
 
 btnLoad?.addEventListener("click", load);
+fileEl?.addEventListener("change", () => {
+  const n = fileEl.files?.[0]?.name;
+  const lbl = document.getElementById("fileName");
+  if (lbl) lbl.textContent = n || "Выбрать CSV";
+});
 btnClear?.addEventListener("click", clearAll);
 
 // Tabs
@@ -21,7 +26,11 @@ document.querySelectorAll(".tab").forEach(btn => {
     document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById(`tab-${btn.dataset.tab}`)?.classList.add("active");
-    if (btn.dataset.tab === "map") setTimeout(() => map && map.invalidateSize(), 150);
+    if (btn.dataset.tab === "map") setTimeout(() => {
+      if (!map) return;
+      map.invalidateSize();
+      if (mapBounds) map.fitBounds(mapBounds, { padding: [30,30] });
+    }, 150);
   });
 });
 
@@ -298,11 +307,12 @@ function renderFlights(){
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${escapeHtml(f.date)}</td>
-      <td title="${escapeHtml(f.from)}">${escapeHtml(f.fromCode || shortName(f.from))}</td>
-      <td title="${escapeHtml(f.to)}">${escapeHtml(f.toCode || shortName(f.to))}</td>
+      <td title="${escapeHtml(f.from)}"><span class="code from">${escapeHtml(f.fromCode || shortName(f.from))}</span></td>
+      <td class="arrow">→</td>
+      <td title="${escapeHtml(f.to)}"><span class="code to">${escapeHtml(f.toCode || shortName(f.to))}</span></td>
       <td>${escapeHtml(f.airline || "—")}</td>
       <td>${escapeHtml(f.duration || "")}</td>
-      <td>${f.km ? formatInt(f.km) : "—"}</td>
+      <td class="km">${f.km ? formatInt(f.km) : "—"}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -327,9 +337,10 @@ function initMap(){
   if (!mapEl || typeof L === "undefined") return;
 
   map = L.map("map", { zoomControl: true }).setView([55.75, 37.62], 4);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
     maxZoom: 18,
-    attribution: "&copy; OpenStreetMap"
+    subdomains: "abcd",
+    attribution: "&copy; OpenStreetMap &copy; CARTO"
   }).addTo(map);
 
   layerRoutes = L.layerGroup().addTo(map);
@@ -342,27 +353,50 @@ function renderMap(){
   layerRoutes.clearLayers();
   layerAirports.clearLayers();
 
+  mapBounds = null;
   if (!flights.length) return;
 
   const airportHits = {};
+  const routeHits = {};
 
   flights.forEach(f => {
     const A = (window.AIRPORTS || {})[f.fromCode];
     const B = (window.AIRPORTS || {})[f.toCode];
     if (!A || !B) return;
-
-    const line = L.polyline([[A.lat, A.lon],[B.lat, B.lon]], { weight: 2, opacity: 0.35 });
-    line.addTo(layerRoutes);
-
+    const key = [f.fromCode, f.toCode].sort().join("-");
+    routeHits[key] = (routeHits[key] || 0) + 1;
     airportHits[f.fromCode] = (airportHits[f.fromCode] || 0) + 1;
     airportHits[f.toCode] = (airportHits[f.toCode] || 0) + 1;
   });
 
+  const maxRoute = Math.max(1, ...Object.values(routeHits));
+  const ROUTE_COLORS = ["#38bdf8", "#a78bfa", "#f472b6", "#fbbf24", "#34d399"];
+
+  Object.entries(routeHits)
+    .sort((a, b) => a[1] - b[1])
+    .forEach(([key, cnt], i) => {
+      const [a, b] = key.split("-");
+      const A = window.AIRPORTS[a], B = window.AIRPORTS[b];
+      const t = cnt / maxRoute;
+      const color = ROUTE_COLORS[i % ROUTE_COLORS.length];
+      const pts = greatCircle(A.lat, A.lon, B.lat, B.lon, 48);
+      // свечение
+      L.polyline(pts, { color, weight: 6 + 6 * t, opacity: 0.12, interactive: false }).addTo(layerRoutes);
+      L.polyline(pts, { color, weight: 1.5 + 2.5 * t, opacity: 0.85 })
+        .bindTooltip(`${a} ↔ ${b}: ${cnt}`, { sticky: true })
+        .addTo(layerRoutes);
+    });
+
+  const maxHits = Math.max(1, ...Object.values(airportHits));
   Object.entries(airportHits).forEach(([code, cnt]) => {
     const A = (window.AIRPORTS || {})[code];
     if (!A) return;
-    const marker = L.circleMarker([A.lat, A.lon], { radius: 6, opacity: 0.9, fillOpacity: 0.6 });
+    const r = 5 + 7 * Math.sqrt(cnt / maxHits);
+    const marker = L.circleMarker([A.lat, A.lon], {
+      radius: r, color: "#fff", weight: 1.5, fillColor: "#f472b6", fillOpacity: 0.9
+    });
     marker.bindPopup(`<b>${escapeHtml(code)}</b><br>${escapeHtml(A.name || "")}<br>Визитов: ${cnt}`);
+    marker.bindTooltip(code, { permanent: cnt >= maxHits * 0.25, direction: "top", className: "apLabel", offset: [0, -r] });
     marker.addTo(layerAirports);
   });
 
@@ -371,7 +405,32 @@ function renderMap(){
     const A = (window.AIRPORTS || {})[code];
     if (A) bounds.push([A.lat, A.lon]);
   });
-  if (bounds.length) map.fitBounds(bounds, { padding: [20,20] });
+  if (bounds.length){
+    mapBounds = bounds;
+    map.fitBounds(bounds, { padding: [30,30] });
+  }
+}
+
+// точки дуги большого круга (маршрут выглядит как реальный перелёт)
+function greatCircle(lat1, lon1, lat2, lon2, n){
+  const toRad = d => d * Math.PI / 180, toDeg = r => r * 180 / Math.PI;
+  const φ1 = toRad(lat1), λ1 = toRad(lon1), φ2 = toRad(lat2), λ2 = toRad(lon2);
+  const d = 2 * Math.asin(Math.sqrt(Math.sin((φ2-φ1)/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin((λ2-λ1)/2)**2));
+  if (!d) return [[lat1, lon1], [lat2, lon2]];
+  const pts = [];
+  let prevLon = null;
+  for (let i = 0; i <= n; i++){
+    const f = i / n;
+    const A = Math.sin((1-f)*d) / Math.sin(d), B = Math.sin(f*d) / Math.sin(d);
+    const x = A*Math.cos(φ1)*Math.cos(λ1) + B*Math.cos(φ2)*Math.cos(λ2);
+    const y = A*Math.cos(φ1)*Math.sin(λ1) + B*Math.cos(φ2)*Math.sin(λ2);
+    const z = A*Math.sin(φ1) + B*Math.sin(φ2);
+    let lon = toDeg(Math.atan2(y, x));
+    if (prevLon !== null){ while (lon - prevLon > 180) lon -= 360; while (lon - prevLon < -180) lon += 360; }
+    prevLon = lon;
+    pts.push([toDeg(Math.atan2(z, Math.sqrt(x*x + y*y))), lon]);
+  }
+  return pts;
 }
 
 // --- simple bar chart ---
@@ -384,59 +443,89 @@ function drawBarChart(canvasId, obj, unit){
     .filter(([k,v]) => k && /^\d{4}$/.test(k))
     .sort((a,b) => a[0].localeCompare(b[0]));
 
-  // clear
-  ctx.setTransform(1,0,0,1,0,0);
-  ctx.clearRect(0,0,c.width,c.height);
-
-  if (!entries.length){
-    ctx.fillText("Нет данных для графика", 10, 20);
-    return;
-  }
-
   // fit to CSS size
   const dpr = devicePixelRatio || 1;
   const cssW = c.clientWidth || 600;
-  const cssH = c.clientHeight || 160;
+  const cssH = c.clientHeight || 220;
   c.width = Math.floor(cssW * dpr);
   c.height = Math.floor(cssH * dpr);
-  ctx.scale(dpr, dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,cssW,cssH);
 
   const w = cssW, h = cssH;
+  ctx.font = "600 12px Manrope, system-ui, Arial";
+  ctx.textAlign = "center";
+
+  if (!entries.length){
+    ctx.fillStyle = "#9aa4d0";
+    ctx.fillText("Загрузи CSV — здесь появится график", w/2, h/2);
+    return;
+  }
 
   const max = Math.max(...entries.map(x => x[1])) || 1;
-  const pad = 24;
-  const gap = 6;
-  const barW = Math.max(8, Math.floor((w - pad*2 - gap*(entries.length-1)) / entries.length));
+  const padX = 12, top = 26, bottom = 26;
+  const gap = Math.max(6, Math.min(18, w / entries.length * 0.25));
+  const barW = Math.min(64, Math.max(8, (w - padX*2 - gap*(entries.length-1)) / entries.length));
+  const totalW = entries.length * barW + gap * (entries.length - 1);
+  const x0 = (w - totalW) / 2;
+  const chartH = h - top - bottom;
 
-  // axis
-  ctx.globalAlpha = 0.3;
-  ctx.beginPath();
-  ctx.moveTo(pad, h - pad);
-  ctx.lineTo(w - pad, h - pad);
-  ctx.stroke();
-  ctx.globalAlpha = 1;
+  // grid lines
+  ctx.strokeStyle = "rgba(255,255,255,.08)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 3; i++){
+    const y = top + chartH * i / 3 + .5;
+    ctx.beginPath(); ctx.moveTo(padX, y); ctx.lineTo(w - padX, y); ctx.stroke();
+  }
 
-  ctx.font = "12px system-ui, Arial";
+  const PALETTE = [["#38bdf8","#6366f1"],["#a78bfa","#ec4899"],["#fbbf24","#ef4444"],["#34d399","#0891b2"],["#f472b6","#8b5cf6"]];
 
   entries.forEach(([label, val], i) => {
-    const x = pad + i*(barW + gap);
-    const bh = Math.round((h - pad*2) * (val / max));
-    const y = (h - pad) - bh;
+    const x = x0 + i*(barW + gap);
+    const bh = Math.max(2, Math.round(chartH * (val / max)));
+    const y = top + chartH - bh;
+    const [c1, c2] = PALETTE[i % PALETTE.length];
+    const g = ctx.createLinearGradient(0, y, 0, y + bh);
+    g.addColorStop(0, c1); g.addColorStop(1, c2);
 
-    ctx.globalAlpha = 0.85;
-    ctx.fillRect(x, y, barW, bh);
-    ctx.globalAlpha = 1;
+    ctx.fillStyle = g;
+    ctx.shadowColor = c1; ctx.shadowBlur = 14;
+    roundRect(ctx, x, y, barW, bh, Math.min(8, barW/2));
+    ctx.fill();
+    ctx.shadowBlur = 0;
 
+    const cx = x + barW/2;
+    if (entries.length <= 12){
+      ctx.fillStyle = "#eef2ff";
+      ctx.fillText(shortNum(val), cx, y - 7);
+    }
     if (entries.length <= 14 || i % 2 === 0){
-      ctx.globalAlpha = 0.75;
-      ctx.fillText(label, x, h - 6);
-      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#9aa4d0";
+      ctx.fillText(label, cx, h - 8);
     }
   });
 
-  ctx.globalAlpha = 0.7;
-  ctx.fillText(`max: ${formatInt(max)} ${unit}`, pad, 14);
-  ctx.globalAlpha = 1;
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#9aa4d0";
+  ctx.fillText(unit, w - padX, 12);
+}
+
+function roundRect(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h);
+  ctx.lineTo(x, y + h);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function shortNum(n){
+  if (n >= 1e6) return (n/1e6).toFixed(1).replace(".0","") + "M";
+  if (n >= 1e4) return Math.round(n/1e3) + "k";
+  return formatInt(n);
 }
 
 // --- helpers ---
@@ -475,9 +564,19 @@ function renderOl(id, items){
   const el = document.getElementById(id);
   if (!el) return;
   el.innerHTML = "";
+  if (!items.length){
+    el.innerHTML = '<div class="empty">Пока пусто — загрузи CSV</div>';
+    return;
+  }
+  const max = items[0][1] || 1;
   items.forEach(([k,v]) => {
     const li = document.createElement("li");
-    li.textContent = `${k} — ${v}`;
+    li.innerHTML = `
+      <div>
+        <div class="name">${escapeHtml(k)}</div>
+        <div class="bar" style="width:${Math.max(4, Math.round(v / max * 100))}%"></div>
+      </div>
+      <span class="cnt">${v}</span>`;
     el.appendChild(li);
   });
 }
